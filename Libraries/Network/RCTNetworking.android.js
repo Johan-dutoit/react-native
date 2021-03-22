@@ -8,14 +8,11 @@
  * @flow
  */
 
-'use strict';
-
 // Do not require the native RCTNetworking module directly! Use this wrapper module instead.
 // It will add the necessary requestId, so that you don't have to generate it yourself.
-const NativeEventEmitter = require('../EventEmitter/NativeEventEmitter');
+import NativeEventEmitter from '../EventEmitter/NativeEventEmitter';
 import NativeNetworkingAndroid from './NativeNetworkingAndroid';
-const convertRequestBody = require('./convertRequestBody');
-
+import convertRequestBody from './convertRequestBody';
 import type {RequestBody} from './convertRequestBody';
 
 type Header = [string, string];
@@ -39,7 +36,8 @@ function generateRequestId(): number {
  * This class is a wrapper around the native RCTNetworking module. It adds a necessary unique
  * requestId to each network request that can be used to abort that request later on.
  */
-class RCTNetworking extends NativeEventEmitter {
+// FIXME: use typed events
+class RCTNetworking extends NativeEventEmitter<$FlowFixMe> {
   constructor() {
     super(NativeNetworkingAndroid);
   }
@@ -87,4 +85,4 @@ class RCTNetworking extends NativeEventEmitter {
   }
 }
 
-module.exports = new RCTNetworking();
+module.exports = (new RCTNetworking(): RCTNetworking);

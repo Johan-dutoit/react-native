@@ -4,11 +4,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @flow
+ * @flow strict
  * @format
  */
-
-'use strict';
 
 import type {TurboModule} from '../../TurboModule/RCTExport';
 import * as TurboModuleRegistry from '../../TurboModule/TurboModuleRegistry';
@@ -24,4 +22,4 @@ export interface Spec extends TurboModule {
   +setSendIdleEvents: (sendIdleEvents: boolean) => void;
 }
 
-export default TurboModuleRegistry.get<Spec>('Timing');
+export default (TurboModuleRegistry.get<Spec>('Timing'): ?Spec);

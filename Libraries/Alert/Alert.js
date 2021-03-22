@@ -8,19 +8,35 @@
  * @flow
  */
 
-'use strict';
-
 import Platform from '../Utilities/Platform';
 import NativeDialogManagerAndroid, {
   type DialogOptions,
 } from '../NativeModules/specs/NativeDialogManagerAndroid';
 import RCTAlertManager from './RCTAlertManager';
-import {type Buttons, type Options, type AlertType} from './NativeAlertManager';
+
+export type AlertType =
+  | 'default'
+  | 'plain-text'
+  | 'secure-text'
+  | 'login-password';
+export type AlertButtonStyle = 'default' | 'cancel' | 'destructive';
+export type Buttons = Array<{
+  text?: string,
+  onPress?: ?Function,
+  style?: AlertButtonStyle,
+  ...
+}>;
+
+type Options = {
+  cancelable?: ?boolean,
+  onDismiss?: ?() => void,
+  ...
+};
 
 /**
  * Launches an alert dialog with the specified title and message.
  *
- * See http://facebook.github.io/react-native/docs/alert.html
+ * See https://reactnative.dev/docs/alert.html
  */
 class Alert {
   static alert(
@@ -93,28 +109,6 @@ class Alert {
     keyboardType?: string,
   ): void {
     if (Platform.OS === 'ios') {
-      if (typeof type === 'function') {
-        console.warn(
-          'You passed a callback function as the "type" argument to Alert.prompt(). React Native is ' +
-            'assuming  you want to use the deprecated Alert.prompt(title, defaultValue, buttons, callback) ' +
-            'signature. The current signature is Alert.prompt(title, message, callbackOrButtons, type, defaultValue, ' +
-            'keyboardType) and the old syntax will be removed in a future version.',
-        );
-
-        const callback = type;
-        RCTAlertManager.alertWithArgs(
-          {
-            title: title || '',
-            type: 'plain-text',
-            defaultValue: message || '',
-          },
-          (id, value) => {
-            callback(value);
-          },
-        );
-        return;
-      }
-
       let callbacks = [];
       const buttons = [];
       let cancelButtonKey;

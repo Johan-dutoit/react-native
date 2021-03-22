@@ -4,20 +4,42 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
+ * @flow strict-local
  * @format
- * @flow
  */
 
-'use strict';
+import * as NativeComponentRegistry from '../../NativeComponent/NativeComponentRegistry';
+import {type HostComponent} from '../../Renderer/shims/ReactNativeTypes';
+import Platform from '../../Utilities/Platform';
+import codegenNativeCommands from '../../Utilities/codegenNativeCommands';
+import ReactNativeViewViewConfigAndroid from './ReactNativeViewViewConfigAndroid';
+import {type ViewProps as Props} from './ViewPropTypes';
+import * as React from 'react';
 
-const ReactNative = require('../../Renderer/shims/ReactNative');
+const ViewNativeComponent: HostComponent<Props> = NativeComponentRegistry.get<Props>(
+  'RCTView',
+  () =>
+    Platform.OS === 'android'
+      ? ReactNativeViewViewConfigAndroid
+      : {uiViewClassName: 'RCTView'},
+);
 
-const requireNativeComponent = require('../../ReactNative/requireNativeComponent');
+interface NativeCommands {
+  +hotspotUpdate: (
+    viewRef: React.ElementRef<HostComponent<mixed>>,
+    x: number,
+    y: number,
+  ) => void;
+  +setPressed: (
+    viewRef: React.ElementRef<HostComponent<mixed>>,
+    pressed: boolean,
+  ) => void;
+}
 
-import type {ViewProps} from './ViewPropTypes';
+export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({
+  supportedCommands: ['hotspotUpdate', 'setPressed'],
+});
 
-type ViewNativeComponentType = Class<ReactNative.NativeComponent<ViewProps>>;
+export default ViewNativeComponent;
 
-const NativeViewComponent = requireNativeComponent('RCTView');
-
-module.exports = ((NativeViewComponent: any): ViewNativeComponentType);
+export type ViewNativeComponentType = HostComponent<Props>;

@@ -14,92 +14,129 @@ import type {SchemaType} from '../../CodegenSchema.js';
 // $FlowFixMe there's no flowtype flow-parser
 const flowParser = require('flow-parser');
 const fs = require('fs');
-const {buildSchema} = require('./schema');
-const {getEvents} = require('./events');
-const {getProps} = require('./props');
-const {getOptions} = require('./options');
-const {getExtendsProps} = require('./extends');
+const path = require('path');
+const {buildComponentSchema} = require('./components');
+const {wrapComponentSchema} = require('./components/schema');
+const {buildModuleSchema} = require('./modules');
+const {wrapModuleSchema} = require('./modules/schema');
+const {
+  createParserErrorCapturer,
+  visit,
+  isModuleRegistryCall,
+} = require('./utils');
+const invariant = require('invariant');
 
-function findConfig(types) {
-  const foundConfigs = [];
+function getConfigType(
+  // TODO(T71778680): Flow-type this node.
+  ast: $FlowFixMe,
+): 'module' | 'component' | 'none' {
+  let isComponent = false;
+  let isModule = false;
 
-  Object.keys(types).forEach(key => {
-    try {
-      const type = types[key];
-      if (type.right.id.name === 'CodegenNativeComponent') {
-        const params = type.right.typeParameters.params;
-        const nativeComponentType = {};
-        nativeComponentType.componentName = params[0].value;
-        nativeComponentType.propsTypeName = params[1].id.name;
-        if (params.length > 2) {
-          nativeComponentType.optionsTypeName = params[2].id.name;
-        }
-        foundConfigs.push(nativeComponentType);
+  visit(ast, {
+    CallExpression(node) {
+      if (
+        node.callee.type === 'Identifier' &&
+        node.callee.name === 'codegenNativeComponent'
+      ) {
+        isComponent = true;
       }
-    } catch (e) {
-      // ignore
-    }
+
+      if (isModuleRegistryCall(node)) {
+        isModule = true;
+      }
+    },
+    InterfaceExtends(node) {
+      if (node.id.name === 'TurboModule') {
+        isModule = true;
+      }
+    },
   });
 
-  if (foundConfigs.length === 0) {
-    throw new Error('Could not find component config for native component');
-  }
-  if (foundConfigs.length > 1) {
-    throw new Error('Only one component is supported per file');
-  }
-
-  return foundConfigs[0];
-}
-
-function getTypes(ast) {
-  return ast.body
-    .filter(node => node.type === 'TypeAlias')
-    .reduce((types, node) => {
-      types[node.id.name] = node;
-      return types;
-    }, {});
-}
-
-function getPropProperties(propsTypeName, types) {
-  const typeAlias = types[propsTypeName];
-  try {
-    return typeAlias.right.typeParameters.params[0].properties;
-  } catch (e) {
+  if (isModule && isComponent) {
     throw new Error(
-      `Failed find type definition for "${propsTypeName}", please check that you have a valid codegen flow file`,
+      'Found type extending "TurboModule" and exported "codegenNativeComponent" declaration in one file. Split them into separated files.',
     );
   }
+
+  if (isModule) {
+    return 'module';
+  } else if (isComponent) {
+    return 'component';
+  } else {
+    return 'none';
+  }
 }
 
-function parseFileAst(filename: string) {
-  const contents = fs.readFileSync(filename, 'utf8');
+function buildSchema(contents: string, filename: ?string): SchemaType {
+  // Early return for non-Spec JavaScript files
+  if (
+    !contents.includes('codegenNativeComponent') &&
+    !contents.includes('TurboModule')
+  ) {
+    return {modules: {}};
+  }
+
   const ast = flowParser.parse(contents);
+  const configType = getConfigType(ast);
 
-  const types = getTypes(ast);
-  const {componentName, propsTypeName, optionsTypeName} = findConfig(types);
+  switch (configType) {
+    case 'component': {
+      return wrapComponentSchema(buildComponentSchema(ast));
+    }
+    case 'module': {
+      if (filename === undefined || filename === null) {
+        throw new Error('Filepath expected while parasing a module');
+      }
+      const hasteModuleName = path.basename(filename).replace(/\.js$/, '');
 
-  const propProperties = getPropProperties(propsTypeName, types);
+      const [parsingErrors, tryParse] = createParserErrorCapturer();
+      const schema = tryParse(() =>
+        buildModuleSchema(hasteModuleName, ast, tryParse),
+      );
 
-  const extendsProps = getExtendsProps(propProperties);
-  const options = getOptions(types[optionsTypeName]);
+      if (parsingErrors.length > 0) {
+        /**
+         * TODO(T77968131): We have two options:
+         *  - Throw the first error, but indicate there are more then one errors.
+         *  - Display all errors, nicely formatted.
+         *
+         * For the time being, we're just throw the first error.
+         **/
 
-  const props = getProps(propProperties);
-  const events = getEvents(propProperties, types);
+        throw parsingErrors[0];
+      }
 
-  return {
-    filename: componentName,
-    componentName,
-    options,
-    extendsProps,
-    events,
-    props,
-  };
+      invariant(
+        schema != null,
+        'When there are no parsing errors, the schema should not be null',
+      );
+
+      return wrapModuleSchema(schema, hasteModuleName);
+    }
+    default:
+      return {modules: {}};
+  }
 }
 
-function parse(filename: string): ?SchemaType {
-  return buildSchema(parseFileAst(filename));
+function parseFile(filename: string): SchemaType {
+  const contents = fs.readFileSync(filename, 'utf8');
+
+  return buildSchema(contents, filename);
+}
+
+function parseModuleFixture(filename: string): SchemaType {
+  const contents = fs.readFileSync(filename, 'utf8');
+
+  return buildSchema(contents, 'path/NativeSampleTurboModule.js');
+}
+
+function parseString(contents: string, filename: ?string): SchemaType {
+  return buildSchema(contents, filename);
 }
 
 module.exports = {
-  parse,
+  parseFile,
+  parseModuleFixture,
+  parseString,
 };

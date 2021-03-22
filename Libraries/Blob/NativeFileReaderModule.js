@@ -8,8 +8,6 @@
  * @format
  */
 
-'use strict';
-
 import type {TurboModule} from '../TurboModule/RCTExport';
 import * as TurboModuleRegistry from '../TurboModule/TurboModuleRegistry';
 
@@ -18,4 +16,6 @@ export interface Spec extends TurboModule {
   +readAsText: (data: Object, encoding: string) => Promise<string>;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('FileReaderModule');
+export default (TurboModuleRegistry.getEnforcing<Spec>(
+  'FileReaderModule',
+): Spec);

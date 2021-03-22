@@ -8,23 +8,17 @@
  * @flow
  */
 
-'use strict';
-
-const Blob = require('../Blob/Blob');
-const EventTarget = require('event-target-shim');
-const NativeEventEmitter = require('../EventEmitter/NativeEventEmitter');
-const BlobManager = require('../Blob/BlobManager');
-const NativeModules = require('../BatchedBridge/NativeModules');
-const Platform = require('../Utilities/Platform');
-const WebSocketEvent = require('./WebSocketEvent');
-
-const base64 = require('base64-js');
-const binaryToBase64 = require('../Utilities/binaryToBase64');
-const invariant = require('invariant');
-
-const {WebSocketModule} = NativeModules;
-
-import type EventSubscription from '../vendor/emitter/EventSubscription';
+import Blob from '../Blob/Blob';
+import type {BlobData} from '../Blob/BlobTypes';
+import BlobManager from '../Blob/BlobManager';
+import NativeEventEmitter from '../EventEmitter/NativeEventEmitter';
+import binaryToBase64 from '../Utilities/binaryToBase64';
+import type {EventSubscription} from '../vendor/emitter/EventEmitter';
+import NativeWebSocketModule from './NativeWebSocketModule';
+import WebSocketEvent from './WebSocketEvent';
+import base64 from 'base64-js';
+import EventTarget from 'event-target-shim';
+import invariant from 'invariant';
 
 type ArrayBufferView =
   | Int8Array
@@ -51,17 +45,28 @@ const WEBSOCKET_EVENTS = ['close', 'error', 'message', 'open'];
 
 let nextWebSocketId = 0;
 
+type WebSocketEventDefinitions = {
+  websocketOpen: [{id: number, protocol: string}],
+  websocketClosed: [{id: number, code: number, reason: string}],
+  websocketMessage: [
+    | {type: 'binary', id: number, data: string}
+    | {type: 'text', id: number, data: string}
+    | {type: 'blob', id: number, data: BlobData},
+  ],
+  websocketFailed: [{id: number, message: string}],
+};
+
 /**
  * Browser-compatible WebSockets implementation.
  *
  * See https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
  * See https://github.com/websockets/ws
  */
-class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
-  static CONNECTING = CONNECTING;
-  static OPEN = OPEN;
-  static CLOSING = CLOSING;
-  static CLOSED = CLOSED;
+class WebSocket extends (EventTarget(...WEBSOCKET_EVENTS): any) {
+  static CONNECTING: number = CONNECTING;
+  static OPEN: number = OPEN;
+  static CLOSING: number = CLOSING;
+  static CLOSED: number = CLOSED;
 
   CONNECTING: number = CONNECTING;
   OPEN: number = OPEN;
@@ -69,7 +74,7 @@ class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
   CLOSED: number = CLOSED;
 
   _socketId: number;
-  _eventEmitter: NativeEventEmitter;
+  _eventEmitter: NativeEventEmitter<WebSocketEventDefinitions>;
   _subscriptions: Array<EventSubscription>;
   _binaryType: ?BinaryType;
 
@@ -87,9 +92,10 @@ class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
   constructor(
     url: string,
     protocols: ?string | ?Array<string>,
-    options: ?{headers?: {origin?: string}},
+    options: ?{headers?: {origin?: string, ...}, ...},
   ) {
     super();
+    this.url = url;
     if (typeof protocols === 'string') {
       protocols = [protocols];
     }
@@ -128,10 +134,10 @@ class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
       protocols = null;
     }
 
-    this._eventEmitter = new NativeEventEmitter(WebSocketModule);
+    this._eventEmitter = new NativeEventEmitter(NativeWebSocketModule);
     this._socketId = nextWebSocketId++;
     this._registerEvents();
-    WebSocketModule.connect(url, protocols, {headers}, this._socketId);
+    NativeWebSocketModule.connect(url, protocols, {headers}, this._socketId);
   }
 
   get binaryType(): ?BinaryType {
@@ -180,12 +186,12 @@ class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
     }
 
     if (typeof data === 'string') {
-      WebSocketModule.send(data, this._socketId);
+      NativeWebSocketModule.send(data, this._socketId);
       return;
     }
 
     if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
-      WebSocketModule.sendBinary(binaryToBase64(data), this._socketId);
+      NativeWebSocketModule.sendBinary(binaryToBase64(data), this._socketId);
       return;
     }
 
@@ -197,14 +203,14 @@ class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
       throw new Error('INVALID_STATE_ERR');
     }
 
-    WebSocketModule.ping(this._socketId);
+    NativeWebSocketModule.ping(this._socketId);
   }
 
   _close(code?: number, reason?: string): void {
     // See https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
     const statusCode = typeof code === 'number' ? code : CLOSE_NORMAL;
     const closeReason = typeof reason === 'string' ? reason : '';
-    WebSocketModule.close(statusCode, closeReason, this._socketId);
+    NativeWebSocketModule.close(statusCode, closeReason, this._socketId);
 
     if (BlobManager.isAvailable && this._binaryType === 'blob') {
       BlobManager.removeWebSocketHandler(this._socketId);
@@ -238,6 +244,7 @@ class WebSocket extends EventTarget(...WEBSOCKET_EVENTS) {
           return;
         }
         this.readyState = this.OPEN;
+        this.protocol = ev.protocol;
         this.dispatchEvent(new WebSocketEvent('open'));
       }),
       this._eventEmitter.addListener('websocketClosed', ev => {

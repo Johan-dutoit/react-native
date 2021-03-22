@@ -5,20 +5,18 @@
  * LICENSE file in the root directory of this source tree.
  *
  * @format
- * @flow
+ * @flow strict
  */
 
-'use strict';
+const Platform = require('../Utilities/Platform');
 
 import NativeDialogManagerAndroid from '../NativeModules/specs/NativeDialogManagerAndroid';
-const NativeModules = require('../BatchedBridge/NativeModules');
-const Platform = require('../Utilities/Platform');
 import NativePermissionsAndroid from './NativePermissionsAndroid';
-
 import type {
   PermissionStatus,
   PermissionType,
 } from './NativePermissionsAndroid';
+import invariant from 'invariant';
 
 export type Rationale = {
   title: string,
@@ -26,6 +24,7 @@ export type Rationale = {
   buttonPositive?: string,
   buttonNegative?: string,
   buttonNeutral?: string,
+  ...
 };
 
 const PERMISSION_REQUEST_RESULT = Object.freeze({
@@ -43,6 +42,7 @@ const PERMISSIONS = Object.freeze({
   GET_ACCOUNTS: 'android.permission.GET_ACCOUNTS',
   ACCESS_FINE_LOCATION: 'android.permission.ACCESS_FINE_LOCATION',
   ACCESS_COARSE_LOCATION: 'android.permission.ACCESS_COARSE_LOCATION',
+  ACCESS_BACKGROUND_LOCATION: 'android.permission.ACCESS_BACKGROUND_LOCATION',
   RECORD_AUDIO: 'android.permission.RECORD_AUDIO',
   READ_PHONE_STATE: 'android.permission.READ_PHONE_STATE',
   CALL_PHONE: 'android.permission.CALL_PHONE',
@@ -64,12 +64,42 @@ const PERMISSIONS = Object.freeze({
 /**
  * `PermissionsAndroid` provides access to Android M's new permissions model.
  *
- * See https://facebook.github.io/react-native/docs/permissionsandroid.html
+ * See https://reactnative.dev/docs/permissionsandroid.html
  */
 
 class PermissionsAndroid {
-  PERMISSIONS = PERMISSIONS;
-  RESULTS = PERMISSION_REQUEST_RESULT;
+  PERMISSIONS: {|
+    ACCESS_BACKGROUND_LOCATION: string,
+    ACCESS_COARSE_LOCATION: string,
+    ACCESS_FINE_LOCATION: string,
+    ADD_VOICEMAIL: string,
+    BODY_SENSORS: string,
+    CALL_PHONE: string,
+    CAMERA: string,
+    GET_ACCOUNTS: string,
+    PROCESS_OUTGOING_CALLS: string,
+    READ_CALENDAR: string,
+    READ_CALL_LOG: string,
+    READ_CONTACTS: string,
+    READ_EXTERNAL_STORAGE: string,
+    READ_PHONE_STATE: string,
+    READ_SMS: string,
+    RECEIVE_MMS: string,
+    RECEIVE_SMS: string,
+    RECEIVE_WAP_PUSH: string,
+    RECORD_AUDIO: string,
+    SEND_SMS: string,
+    USE_SIP: string,
+    WRITE_CALENDAR: string,
+    WRITE_CALL_LOG: string,
+    WRITE_CONTACTS: string,
+    WRITE_EXTERNAL_STORAGE: string,
+  |} = PERMISSIONS;
+  RESULTS: {|
+    DENIED: $TEMPORARY$string<'denied'>,
+    GRANTED: $TEMPORARY$string<'granted'>,
+    NEVER_ASK_AGAIN: $TEMPORARY$string<'never_ask_again'>,
+  |} = PERMISSION_REQUEST_RESULT;
 
   /**
    * DEPRECATED - use check
@@ -90,6 +120,11 @@ class PermissionsAndroid {
       return Promise.resolve(false);
     }
 
+    invariant(
+      NativePermissionsAndroid,
+      'PermissionsAndroid is not installed correctly.',
+    );
+
     return NativePermissionsAndroid.checkPermission(permission);
   }
 
@@ -97,7 +132,7 @@ class PermissionsAndroid {
    * Returns a promise resolving to a boolean value as to whether the specified
    * permissions has been granted
    *
-   * See https://facebook.github.io/react-native/docs/permissionsandroid.html#check
+   * See https://reactnative.dev/docs/permissionsandroid.html#check
    */
   check(permission: PermissionType): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -106,6 +141,12 @@ class PermissionsAndroid {
       );
       return Promise.resolve(false);
     }
+
+    invariant(
+      NativePermissionsAndroid,
+      'PermissionsAndroid is not installed correctly.',
+    );
+
     return NativePermissionsAndroid.checkPermission(permission);
   }
 
@@ -145,7 +186,7 @@ class PermissionsAndroid {
    * Prompts the user to enable a permission and returns a promise resolving to a
    * string value indicating whether the user allowed or denied the request
    *
-   * See https://facebook.github.io/react-native/docs/permissionsandroid.html#request
+   * See https://reactnative.dev/docs/permissionsandroid.html#request
    */
   async request(
     permission: PermissionType,
@@ -158,6 +199,11 @@ class PermissionsAndroid {
       return Promise.resolve(this.RESULTS.DENIED);
     }
 
+    invariant(
+      NativePermissionsAndroid,
+      'PermissionsAndroid is not installed correctly.',
+    );
+
     if (rationale) {
       const shouldShowRationale = await NativePermissionsAndroid.shouldShowRequestPermissionRationale(
         permission,
@@ -169,6 +215,9 @@ class PermissionsAndroid {
             ...rationale,
           };
           NativeDialogManagerAndroid.showAlert(
+            /* $FlowFixMe(>=0.111.0 site=react_native_fb) This comment
+             * suppresses an error found when Flow v0.111 was deployed. To see
+             * the error, delete this comment and run Flow. */
             options,
             () => reject(new Error('Error showing rationale')),
             () =>
@@ -185,11 +234,11 @@ class PermissionsAndroid {
    * returns an object with the permissions as keys and strings as values
    * indicating whether the user allowed or denied the request
    *
-   * See https://facebook.github.io/react-native/docs/permissionsandroid.html#requestmultiple
+   * See https://reactnative.dev/docs/permissionsandroid.html#requestmultiple
    */
   requestMultiple(
     permissions: Array<PermissionType>,
-  ): Promise<{[permission: PermissionType]: PermissionStatus}> {
+  ): Promise<{[permission: PermissionType]: PermissionStatus, ...}> {
     if (Platform.OS !== 'android') {
       console.warn(
         '"PermissionsAndroid" module works only for Android platform.',
@@ -197,10 +246,15 @@ class PermissionsAndroid {
       return Promise.resolve({});
     }
 
+    invariant(
+      NativePermissionsAndroid,
+      'PermissionsAndroid is not installed correctly.',
+    );
+
     return NativePermissionsAndroid.requestMultiplePermissions(permissions);
   }
 }
 
-PermissionsAndroid = new PermissionsAndroid();
+const PermissionsAndroidInstance: PermissionsAndroid = new PermissionsAndroid();
 
-module.exports = PermissionsAndroid;
+module.exports = PermissionsAndroidInstance;

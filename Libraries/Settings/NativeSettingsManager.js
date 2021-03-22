@@ -8,10 +8,8 @@
  * @format
  */
 
-'use strict';
-
-import type {TurboModule} from 'RCTExport';
-import * as TurboModuleRegistry from 'TurboModuleRegistry';
+import type {TurboModule} from '../TurboModule/RCTExport';
+import * as TurboModuleRegistry from '../TurboModule/TurboModuleRegistry';
 
 export interface Spec extends TurboModule {
   +getConstants: () => {|
@@ -21,4 +19,6 @@ export interface Spec extends TurboModule {
   +deleteValues: (values: Array<string>) => void;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('SettingsManager');
+export default (TurboModuleRegistry.getEnforcing<Spec>(
+  'SettingsManager',
+): Spec);

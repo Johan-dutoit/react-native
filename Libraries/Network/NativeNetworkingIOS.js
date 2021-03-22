@@ -8,10 +8,8 @@
  * @format
  */
 
-'use strict';
-
-import type {TurboModule} from 'RCTExport';
-import * as TurboModuleRegistry from 'TurboModuleRegistry';
+import type {TurboModule} from '../TurboModule/RCTExport';
+import * as TurboModuleRegistry from '../TurboModule/TurboModuleRegistry';
 
 export interface Spec extends TurboModule {
   +sendRequest: (
@@ -20,19 +18,19 @@ export interface Spec extends TurboModule {
       url: string,
       data: Object,
       headers: Object,
-      responseType: Object, // TODO: Use stricter type.
+      responseType: string,
       incrementalUpdates: boolean,
       timeout: number,
       withCredentials: boolean,
     |},
-    callback: (requestId: number) => mixed,
+    callback: (requestId: number) => void,
   ) => void;
   +abortRequest: (requestId: number) => void;
-  +clearCookies: (callback: (result: boolean) => mixed) => void;
+  +clearCookies: (callback: (result: boolean) => void) => void;
 
   // RCTEventEmitter
   +addListener: (eventName: string) => void;
   +removeListeners: (count: number) => void;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('Networking');
+export default (TurboModuleRegistry.getEnforcing<Spec>('Networking'): Spec);

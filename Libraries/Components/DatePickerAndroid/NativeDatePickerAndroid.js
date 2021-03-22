@@ -8,8 +8,6 @@
  * @format
  */
 
-'use strict';
-
 import type {TurboModule} from '../../TurboModule/RCTExport';
 import * as TurboModuleRegistry from '../../TurboModule/TurboModuleRegistry';
 
@@ -17,4 +15,6 @@ export interface Spec extends TurboModule {
   +open: (options: Object) => Promise<Object>;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('DatePickerAndroid');
+export default (TurboModuleRegistry.getEnforcing<Spec>(
+  'DatePickerAndroid',
+): Spec);
